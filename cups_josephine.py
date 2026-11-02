@@ -168,7 +168,12 @@ def commandes_square(debut: date, fin: date):
             r = requests.post(f"{SQUARE_URL}/orders/search", json=corps, headers=en_tetes, timeout=60)
             if r.status_code < 500:
                 break
-        r.raise_for_status()
+        if not r.ok:
+            try:
+                detail = "; ".join(f"{e.get('code')} : {e.get('detail')}" for e in r.json().get("errors", []))
+            except ValueError:
+                detail = r.text[:300]
+            sys.exit(f"Square a refusé la lecture des commandes (HTTP {r.status_code}) - {detail}")
         data = r.json()
         yield from data.get("orders", [])
         if not data.get("cursor"):
@@ -185,11 +190,17 @@ def compter_commande(cmd):
             taxes[t["uid"]] = float(t.get("percentage", "nan"))
         except (KeyError, ValueError):
             pass
-    lignes, non_classees = [], 0.0
+    lignes, non_classees, detail = [], 0.0, []
     for li in cmd.get("line_items", []) or []:
         q = float(li.get("quantity", 1) or 1)
         nom, _ = nettoyer(li.get("name", ""))
-        e = emporter(li, taxes, jour)
+        detail.append((nom, q, emporter(li, taxes, jour)))
+    # Ligne sans taux reconnu (ex. boisson offerte à 0 €) : elle prend le mode des autres lignes de la commande
+    modes = {e for _, _, e in detail if e is not None}
+    mode_cmd = modes.pop() if len(modes) == 1 else None
+    for nom, q, e in detail:
+        if e is None:
+            e = mode_cmd
         if e is None:
             if categorie(nom) in ("froide", "chaude", "glacee"):
                 non_classees += q
@@ -375,6 +386,7 @@ def prevision(conso, debut_hist: date, aujourdhui: date, conso_tot, semaines=60)
     recent = somme(conso, hier - timedelta(days=28), hier) / 4
     ly_ok = debut_hist <= hier - timedelta(days=364 + 28)
     ly_recent = somme(conso, hier - timedelta(days=364 + 28), hier - timedelta(days=364)) / 4 if ly_ok else None
+    comparable = ly_recent is not None and ly_recent >= 15   # l'an dernier à la même période, le café tournait
     sem = []
     for k in range(semaines):
         s = aujourdhui + timedelta(days=1 + 7 * k)
@@ -386,14 +398,16 @@ def prevision(conso, debut_hist: date, aujourdhui: date, conso_tot, semaines=60)
             continue
         else:
             ly_sem = None
-        if ly_sem is not None and ly_recent and ly_recent >= 15 and recent > 0:
-            v = recent * min(max(ly_sem / ly_recent, 0.1), 8)
-        elif ly_sem is not None and (not ly_recent or ly_recent < 15 or recent == 0):
-            v = ly_sem                              # l'an dernier à la même période (pas de comparaison fiable)
-        else:
+        if ly_sem is None:
             v = recent
+        elif comparable and recent > 0:
+            v = recent * min(max(ly_sem / ly_recent, 0.1), 8)     # rythme récent × variation saisonnière
+        elif comparable:
+            v = ly_sem                              # café fermé ces dernières semaines : l'an dernier tel quel
+        else:
+            v = max(recent, ly_sem)                 # 1re année : prudence, le plus haut des deux
         sem.append((s, v))
-    resume = {"recent": recent, "ly_recent": ly_recent, "saisonnalite": ly_ok}
+    resume = {"recent": recent, "ly_recent": ly_recent, "saisonnalite": ly_ok, "comparable": comparable}
     return sem, resume
 
 
@@ -545,8 +559,14 @@ def generer_html(res, conso, h, aujourdhui: date, chemin, alertes):
 
         # détail du calcul
         rs = r["resume"]
-        ly = (f"{fr_nb(rs['ly_recent'])} cups/semaine à la même période l’an dernier"
-              if rs["saisonnalite"] and rs["ly_recent"] is not None else "pas encore d’historique de l’an dernier : prévision = rythme récent")
+        if rs["comparable"]:
+            ly = (f"{fr_nb(rs['ly_recent'])} cups/semaine à la même période l’an dernier. "
+                  "Prévision = rythme récent × variation constatée l’an dernier")
+        elif rs["saisonnalite"]:
+            ly = ("l’an dernier à la même période, le café n’avait pas encore assez de ventes pour comparer. "
+                  "Prévision prudente : pour chaque semaine, le plus haut entre le rythme récent et la même semaine l’an dernier")
+        else:
+            ly = "pas encore d’historique de l’an dernier : prévision = rythme récent"
         prochaines = "".join(f"<td>{fr_nb(v)}</td>" for _, v in r["semaines"][:8])
         tetes = "".join(f"<th>{s:%d/%m}</th>" for s, _ in r["semaines"][:8])
         bloc_stock = ""
