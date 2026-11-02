@@ -1456,11 +1456,11 @@
    "inconnus": {}
   },
   "2026-11-02": {
-   "opaques": 25.0,
+   "opaques": 26.0,
    "transparents": 19.0,
-   "non_classees": 1.0,
+   "non_classees": 0.0,
    "inconnus": {}
   }
  },
- "mis_a_jour": "2026-11-02T18:10+01:00"
+ "mis_a_jour": "2026-11-02T18:13+01:00"
 }
