@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       verifier_jour:
-        description: "Contrôle d'un jour (AAAA-MM-JJ), résultat dans le journal. Laisser vide sinon."
+        description: "Contrôle d'un jour (ex. 02/11/2026), résultat dans le journal. Laisser vide sinon."
         required: false
         default: ""
 
