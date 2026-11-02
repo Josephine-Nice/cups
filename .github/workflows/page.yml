@@ -1,0 +1,81 @@
+name: Page cups Joséphine
+
+on:
+  schedule:
+    # Heures en UTC. Les horaires GitHub ne sont pas fiables (retards, oublis) : deux passages par jour
+    # suffisent, le stock de cups bouge lentement. On peut aussi lancer à la main (Run workflow).
+    - cron: "5 4 * * *"       # vers 5h-6h du matin (Paris)
+    - cron: "5 17 * * *"      # vers 18h-19h (Paris), après la journée
+  workflow_dispatch:
+    inputs:
+      verifier_jour:
+        description: "Contrôle d'un jour (AAAA-MM-JJ), résultat dans le journal. Laisser vide sinon."
+        required: false
+        default: ""
+
+permissions:
+  contents: write           # pour enregistrer historique_cups.json
+  pages: write
+  id-token: write
+
+concurrency:
+  group: page-cups
+  cancel-in-progress: false
+
+jobs:
+  construire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install requests
+
+      - name: Contrôle d'un jour (facultatif)
+        if: ${{ github.event.inputs.verifier_jour != '' && github.event.inputs.verifier_jour != null }}
+        env:
+          SQUARE_ACCESS_TOKEN: ${{ secrets.SQUARE_ACCESS_TOKEN }}
+          SQUARE_LOCATION_ID: ${{ secrets.SQUARE_LOCATION_ID }}
+        run: python cups_josephine.py --verifier-jour "${{ github.event.inputs.verifier_jour }}"
+
+      - name: Calculer et créer la page
+        env:
+          SQUARE_ACCESS_TOKEN: ${{ secrets.SQUARE_ACCESS_TOKEN }}
+          SQUARE_LOCATION_ID: ${{ secrets.SQUARE_LOCATION_ID }}
+          STOCK_SHEET_URL: ${{ secrets.STOCK_SHEET_URL }}
+        run: python cups_josephine.py --html site/index.html
+
+      - name: Enregistrer l'historique des ventes de cups
+        run: |
+          git config user.name "cups-bot"
+          git config user.email "cups-bot@users.noreply.github.com"
+          git add historique_cups.json
+          git diff --cached --quiet || (git commit -m "Historique des cups" && git push)
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  publier:
+    needs: construire
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url || steps.relance.outputs.page_url }}
+    steps:
+      - id: deploiement
+        uses: actions/deploy-pages@v4
+        continue-on-error: true     # panne passagère de GitHub Pages (erreur 500) : on relance
+
+      - name: Attendre avant de relancer
+        if: steps.deploiement.outcome == 'failure'
+        run: sleep 90
+
+      - id: relance
+        if: steps.deploiement.outcome == 'failure'
+        uses: actions/deploy-pages@v4
