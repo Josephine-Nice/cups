@@ -9,7 +9,7 @@ Appli **séparée** de celle des cakes : son propre dépôt, ses propres secrets
 2. Le script lit les ventes dans Square (API Orders) et compte les cups à emporter, jour par jour :
    - transparents = boissons Iced + « Version glacée » ;
    - opaques = boissons chaudes − « Version glacée ».
-   - **Ventes à emporter :** jusqu'au 01/11/2026, ce sont les articles suffixés « ae ». Depuis le 02/11/2026, ce sont les lignes taxées à 5,5 %. L'API Orders ne transmet pas l'option « Sur place / À emporter », mais cette option fixe le taux de TVA (5,5 % à emporter, 10 % sur place).
+   - **Ventes à emporter :** jusqu'au 01/11/2026, ce sont les articles suffixés « ae ». Depuis le 02/11/2026, ce sont les lignes taxées à 5,5 %. L'option « Sur place / À emporter » fixe le taux de TVA (5,5 % / 10 %). Elle apparaît aussi dans les « fulfillments » de l'API (PICKUP = à emporter, IN_STORE = sur place), méthode de secours si un taux changeait. Une ligne sans taxe (boisson offerte à 0 €) prend le mode des autres lignes de sa commande.
 3. Les comptes sont gardés dans `historique_cups.json`, mis à jour par le robot. Le premier lancement relit environ 14 mois. Ensuite, seuls les 14 derniers jours sont relus.
 4. Le script lit le Google Sheet « Stocks cups » (inventaires et livraisons) et estime le stock :
    dernier inventaire + livraisons depuis − cups vendus depuis.
@@ -43,7 +43,7 @@ Un seul onglet, avec ces colonnes en ligne 1 (voir `modele_stocks_cups.csv`) :
    - `STOCK_SHEET_URL` : le lien CSV du Sheet (étape 5).
 4. **Pages** : Settings → Pages → Source : **GitHub Actions**. Puis Settings → Actions → General → Workflow permissions : **Read and write permissions**.
 5. **Sheet** : créez « Stocks cups », collez la ligne d'en-têtes, saisissez un premier inventaire. Ensuite : Fichier → Partager → Publier sur le web → l'onglet, format **CSV** → copiez le lien dans le secret `STOCK_SHEET_URL`.
-6. **Premier lancement** : Actions → « Page cups Joséphine » → Run workflow. Mettez `2026-11-02` dans le champ de contrôle. Le journal de l'étape « Contrôle d'un jour » doit afficher **Opaques : 24, Transparents : 17**.
+6. **Premier lancement** : Actions → « Page cups Joséphine » → Run workflow. Mettez `02/11/2026` dans le champ de contrôle (date à la française). Le journal de l'étape « Contrôle d'un jour » doit afficher **Opaques : 24, Transparents : 17**.
 7. La page est à l'adresse `https://josephine-nice.github.io/cups/`. Ajoutez-la à l'écran d'accueil (Partager → Sur l'écran d'accueil).
 
 ## À savoir

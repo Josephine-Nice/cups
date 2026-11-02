@@ -17,7 +17,7 @@ Le script :
 Usage :
   python cups_josephine.py --html site/index.html            # API Square + page
   python cups_josephine.py --csv export.csv                  # compte les cups d'un export Square (test)
-  python cups_josephine.py --verifier-jour 2026-11-02        # contrôle d'un jour via l'API (journal du workflow)
+  python cups_josephine.py --verifier-jour 02/11/2026        # contrôle d'un jour via l'API (journal du workflow)
 """
 import argparse
 import csv
@@ -700,7 +700,7 @@ def main():
     ap.add_argument("--stock-csv", help="fichier ou lien CSV des stocks (sinon STOCK_SHEET_URL)")
     ap.add_argument("--date", help="date du jour AAAA-MM-JJ (test)")
     ap.add_argument("--sans-square", action="store_true", help="n'interroge pas Square (utilise historique_cups.json tel quel)")
-    ap.add_argument("--verifier-jour", help="contrôle un jour AAAA-MM-JJ via l'API et l'affiche")
+    ap.add_argument("--verifier-jour", help="contrôle un jour (ex. 02/11/2026) via l'API et l'affiche")
     a = ap.parse_args()
 
     if a.csv:
@@ -709,11 +709,14 @@ def main():
                   + (f" | non reconnus : {v['inconnus']}" if v["inconnus"] else ""))
         return
     if a.verifier_jour:
-        verifier_jour(date.fromisoformat(a.verifier_jour))
+        jour = _date_souple(a.verifier_jour)
+        if not jour:
+            sys.exit(f"Date de contrôle illisible : « {a.verifier_jour} ». Exemple : 02/11/2026")
+        verifier_jour(jour)
         if not a.html:
             return
 
-    aujourdhui = date.fromisoformat(a.date) if a.date else datetime.now(TZ).date()
+    aujourdhui = (_date_souple(a.date) or sys.exit(f"Date illisible : {a.date}")) if a.date else datetime.now(TZ).date()
     h = lire_historique() if a.sans_square else mettre_a_jour_historique(aujourdhui)
     mouvements, alertes = lire_mouvements(a.stock_csv)
     res, conso, _ = analyser(h, mouvements, aujourdhui)
