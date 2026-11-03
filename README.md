@@ -9,8 +9,8 @@ Appli **séparée** de celle des cakes : son propre dépôt, ses propres secrets
 2. Le script lit les ventes dans Square (API Orders) et compte les cups à emporter, jour par jour :
    - transparents = boissons Iced + « Version glacée » ;
    - opaques = boissons chaudes − « Version glacée ».
-   - **Ventes à emporter :** jusqu'au 01/11/2026, ce sont les articles suffixés « ae ». Depuis le 02/11/2026, ce sont les lignes taxées à 5,5 %. L'option « Sur place / À emporter » fixe le taux de TVA (5,5 % / 10 %). Elle apparaît aussi dans les « fulfillments » de l'API (PICKUP = à emporter, IN_STORE = sur place), méthode de secours si un taux changeait. Une ligne sans taxe (boisson offerte à 0 €) prend le mode des autres lignes de sa commande.
-3. Les comptes sont gardés dans `historique_cups.json`, mis à jour par le robot. Le premier lancement relit environ 14 mois. Ensuite, seuls les 14 derniers jours sont relus.
+   - **Ventes à emporter :** les articles suffixés « ae » (ancien catalogue, dans le nom de l'article ou de sa variante ; « sp » = sur place), sinon les lignes taxées à 5,5 %, à toutes les dates. L'option « Sur place / À emporter » fixe le taux de TVA (5,5 % / 10 %). Elle apparaît aussi dans les « fulfillments » de l'API (PICKUP = à emporter, IN_STORE = sur place), méthode de secours si un taux changeait. Une ligne sans taxe (boisson offerte à 0 €) prend le mode des autres lignes de sa commande.
+3. Les comptes sont gardés dans `historique_cups.json`, mis à jour par le robot. Le premier lancement relit environ 14 mois. Ensuite, seuls les 14 derniers jours sont relus. Quand la règle de comptage change (`VERSION_COMPTAGE` en haut du script), tout l'historique est relu au passage suivant.
 4. Le script lit le Google Sheet « Stocks cups » (inventaires et livraisons) et estime le stock :
    dernier inventaire + livraisons depuis − cups vendus depuis.
 5. Il prévoit la consommation : rythme des 4 dernières semaines × variation de la même période l'an dernier.

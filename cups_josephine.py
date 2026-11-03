@@ -6,9 +6,8 @@ Le script :
   1. lit les ventes Square (API Orders) et compte les cups à emporter par jour :
        - transparents = boissons Iced + « Version glacée »
        - opaques      = boissons chaudes - « Version glacée »
-     Ventes à emporter :
-       - jusqu'au 01/11/2026 : articles suffixés « ae » ;
-       - depuis le 02/11/2026 : lignes taxées à 5,5 % (le mode de traitement « À emporter » fixe ce taux).
+     Ventes à emporter : articles ou variantes suffixés « ae » (ancien catalogue, « sp » = sur place),
+     sinon lignes taxées à 5,5 % (le mode de traitement « À emporter » fixe ce taux), à toutes les dates.
   2. garde ces comptes jour par jour dans historique_cups.json (seuls les derniers jours sont relus ensuite) ;
   3. lit les inventaires et livraisons du Google Sheet « Stocks cups » (publié en CSV) ;
   4. estime le stock, prévoit la consommation avec la saisonnalité (année précédente) ;
@@ -40,11 +39,11 @@ CUPS_PAR_CARTON = {"opaques": 500, "transparents": 1000}
 DELAI_LIVRAISON_SEMAINES = 5
 MARGE_SEMAINES = 2                  # alerte quand le stock couvre moins de délai + marge
 COUVERTURE_MINI_SEMAINES = 7        # après réception, le stock doit encore couvrir au moins ça
-DATE_NOUVEAU_CATALOGUE = date(2026, 11, 2)   # à partir de ce jour : plus de suffixe « ae »
 TVA_EMPORTER = 5.5
 TVA_SUR_PLACE = 10.0
 JOURS_HISTORIQUE_INITIAL = 420      # 1er lancement : un peu plus d'un an pour la saisonnalité
 JOURS_A_RELIRE = 14                 # ensuite : on relit seulement les 14 derniers jours
+VERSION_COMPTAGE = 2                # changer ce numéro quand la règle de comptage change : tout l'historique est relu
 HISTORIQUE = Path(os.environ.get("HISTORIQUE_CUPS", Path(__file__).with_name("historique_cups.json")))
 SQUARE_URL = "https://connect.squareup.com/v2"
 SQUARE_VERSION = "2024-10-17"
@@ -128,13 +127,23 @@ def taux_ligne(li, taxes_cmd):
     return taux
 
 
-def emporter(li, taxes_cmd, jour: date):
-    """True si la ligne est vendue à emporter, False si sur place, None si on ne sait pas."""
+def suffixe_ligne(li):
+    """'ae', 'sp' ou '' : suffixe de l'article, ou de sa variante (ex. article « Latte », variante « ae »)."""
     _, suffixe = nettoyer(li.get("name", ""))
+    if not suffixe:
+        variante = sans_accents(li.get("variation_name", "") or "").strip()
+        if variante in ("ae", "sp"):
+            suffixe = variante
+        else:
+            _, suffixe = nettoyer(variante)
+    return suffixe
+
+
+def emporter(li, taxes_cmd):
+    """True si la ligne est vendue à emporter, False si sur place, None si on ne sait pas."""
+    suffixe = suffixe_ligne(li)
     if suffixe:                                     # anciens articles « ae » / « sp »
         return suffixe == "ae"
-    if jour < DATE_NOUVEAU_CATALOGUE:
-        return False                                # ancien catalogue sans suffixe : pas d'emporter identifiable
     taux = taux_ligne(li, taxes_cmd)
     if any(abs(t - TVA_EMPORTER) < 0.01 for t in taux):
         return True
@@ -182,7 +191,8 @@ def commandes_square(debut: date, fin: date):
 
 
 def compter_commande(cmd):
-    """(jour, opaques, transparents, inconnus, lignes_non_classees) pour une commande de l'API."""
+    """(jour, opaques, transparents, inconnus, lignes_non_classees, detail) pour une commande de l'API.
+    detail : [(nom, quantité, True / False / None)] après report du mode de la commande."""
     jour = datetime.fromisoformat(cmd["closed_at"].replace("Z", "+00:00")).astimezone(TZ).date()
     taxes = {}
     for t in cmd.get("taxes", []) or []:
@@ -194,13 +204,12 @@ def compter_commande(cmd):
     for li in cmd.get("line_items", []) or []:
         q = float(li.get("quantity", 1) or 1)
         nom, _ = nettoyer(li.get("name", ""))
-        detail.append((nom, q, emporter(li, taxes, jour)))
+        detail.append((nom, q, emporter(li, taxes)))
     # Ligne sans taux reconnu (ex. boisson offerte à 0 €) : elle prend le mode des autres lignes de la commande
     modes = {e for _, _, e in detail if e is not None}
     mode_cmd = modes.pop() if len(modes) == 1 else None
+    detail = [(nom, q, mode_cmd if e is None else e) for nom, q, e in detail]
     for nom, q, e in detail:
-        if e is None:
-            e = mode_cmd
         if e is None:
             if categorie(nom) in ("froide", "chaude", "glacee"):
                 non_classees += q
@@ -208,14 +217,14 @@ def compter_commande(cmd):
         if e:
             lignes.append((nom, q))
     o, t, inc = cups_commande(lignes)
-    return jour, o, t, inc, non_classees
+    return jour, o, t, inc, non_classees, detail
 
 
 def comptes_square(debut: date, fin: date):
     """{jour iso: {'opaques', 'transparents', 'non_classees', 'inconnus': {nom: q}}} depuis l'API."""
     res = {}
     for cmd in commandes_square(debut, fin):
-        jour, o, t, inc, nc = compter_commande(cmd)
+        jour, o, t, inc, nc, _ = compter_commande(cmd)
         j = res.setdefault(jour.isoformat(), {"opaques": 0.0, "transparents": 0.0, "non_classees": 0.0, "inconnus": {}})
         j["opaques"] += o
         j["transparents"] += t
@@ -264,7 +273,10 @@ def lire_historique():
 def mettre_a_jour_historique(aujourdhui: date):
     """Complète historique_cups.json depuis Square. Retourne l'historique."""
     h = lire_historique()
-    if not h.get("debut"):
+    if h.get("debut") and h.get("version") != VERSION_COMPTAGE:
+        debut = date.fromisoformat(h["debut"])      # règle de comptage changée : on relit tout
+        h["jours"] = {}
+    elif not h.get("debut"):
         debut = aujourdhui - timedelta(days=JOURS_HISTORIQUE_INITIAL)
         h["debut"] = debut.isoformat()
     else:
@@ -277,6 +289,7 @@ def mettre_a_jour_historique(aujourdhui: date):
             del h["jours"][d]
     h["jours"].update(nouveaux)
     h["jours"] = dict(sorted(h["jours"].items()))
+    h["version"] = VERSION_COMPTAGE
     h["mis_a_jour"] = datetime.now(TZ).isoformat(timespec="minutes")
     HISTORIQUE.write_text(json.dumps(h, indent=1, ensure_ascii=False))
     return h
@@ -535,8 +548,9 @@ def generer_html(res, conso, h, aujourdhui: date, chemin, alertes):
             elif r["bientot"]:
                 etat = f"<div class='etat bientot'>Commande à prévoir avant le <b>{fr_date(r['commander_avant'])}</b></div>"
             else:
-                etat = (f"<div class='etat ok'>✔ Stock suffisant<br><span>commander avant le "
-                        f"{fr_date(r['commander_avant'])}</span></div>")
+                quand = (f"commander avant le {fr_date(r['commander_avant'])}" if r["commander_avant"]
+                         else "pas de commande nécessaire avant au moins un an")
+                etat = f"<div class='etat ok'>✔ Stock suffisant<br><span>{quand}</span></div>"
             sr = r["semaines_restantes"]
             chiffres = (
                 "<div class='chiffres'>"
@@ -654,9 +668,13 @@ def verifier_jour(jour: date):
     """Affiche, pour un jour, les cups comptés par l'API et ce que contiennent les commandes
     (taux de TVA, fulfillments), pour comparer avec l'export Square."""
     taux_vus, fulf_vus, ex = Counter(), Counter(), None
+    par_boisson = defaultdict(Counter)              # nom -> {'à emporter', 'sur place', 'non classée'}
     tot_o = tot_t = non_cl = 0.0
     for cmd in commandes_square(jour, jour + timedelta(days=1)):
-        _, o, t, inc, nc = compter_commande(cmd)
+        _, o, t, inc, nc, detail = compter_commande(cmd)
+        for nom, q, e in detail:
+            if categorie(nom) in ("froide", "chaude", "glacee", "inconnu"):
+                par_boisson[nom][{True: "à emporter", False: "sur place", None: "non classée"}[e]] += q
         tot_o += o
         tot_t += t
         non_cl += nc
@@ -673,6 +691,10 @@ def verifier_jour(jour: date):
     print("Types de fulfillment rencontrés :", dict(fulf_vus) or "aucun")
     if ex:
         print("Exemple de fulfillment :", json.dumps(ex, ensure_ascii=False)[:800])
+    print("Détail par boisson :")
+    for nom in sorted(par_boisson):
+        c = par_boisson[nom]
+        print(f"  {nom} : " + ", ".join(f"{k} {c[k]:.0f}" for k in ("à emporter", "sur place", "non classée") if c[k]))
 
 
 # ----------------------------------------------------------------- réglages .env

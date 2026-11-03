@@ -26,7 +26,8 @@ Le détail du fonctionnement et de l'installation est dans `README.md`.
 ## Règles métier (réglages en haut de `cups_josephine.py`)
 
 - Transparents = boissons « Iced » + option « Version glacée » ; opaques = boissons chaudes − « Version glacée ».
-- Vente à emporter : suffixe « ae » jusqu'au 01/11/2026, puis ligne taxée à 5,5 % depuis le 02/11/2026.
+- Vente à emporter : suffixe « ae » (nom de l'article ou de la variante), sinon ligne taxée à 5,5 %, à toutes les dates.
+  Si on change cette règle, augmenter `VERSION_COMPTAGE` : le robot relit alors tout l'historique.
 - Une nouvelle boisson non reconnue apparaît dans « À vérifier » sur la page : l'ajouter à `FROIDES` ou `CHAUDES`.
 - Cartons de 500 opaques et de 1 000 transparents ; livraison en 5 semaines + 2 de marge (alerte sous 7 semaines de stock).
 
