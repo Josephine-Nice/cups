@@ -1369,7 +1369,9 @@
    "opaques": 24.0,
    "transparents": 24.0,
    "non_classees": 0.0,
-   "inconnus": {}
+   "inconnus": {
+    "": 1.0
+   }
   },
   "2026-10-17": {
    "opaques": 18.0,
@@ -1381,7 +1383,9 @@
    "opaques": 17.0,
    "transparents": 26.0,
    "non_classees": 0.0,
-   "inconnus": {}
+   "inconnus": {
+    "": 1.0
+   }
   },
   "2026-10-20": {
    "opaques": 14.0,
@@ -1450,10 +1454,12 @@
    "inconnus": {}
   },
   "2026-11-01": {
-   "opaques": 1.0,
-   "transparents": 0.0,
+   "opaques": 2.0,
+   "transparents": 1.0,
    "non_classees": 0.0,
-   "inconnus": {}
+   "inconnus": {
+    "": 5.0
+   }
   },
   "2026-11-02": {
    "opaques": 26.0,
@@ -1468,5 +1474,6 @@
    "inconnus": {}
   }
  },
- "mis_a_jour": "2026-11-03T18:30+01:00"
+ "mis_a_jour": "2026-11-03T18:36+01:00",
+ "version": 2
 }
