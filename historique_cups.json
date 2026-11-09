@@ -1498,8 +1498,14 @@
    "inconnus": {
     "": 1.0
    }
+  },
+  "2026-11-09": {
+   "opaques": 36.0,
+   "transparents": 10.0,
+   "non_classees": 0.0,
+   "inconnus": {}
   }
  },
- "mis_a_jour": "2026-11-09T06:04+01:00",
+ "mis_a_jour": "2026-11-09T18:54+01:00",
  "version": 2
 }
