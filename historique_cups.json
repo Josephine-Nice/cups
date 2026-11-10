@@ -1504,8 +1504,14 @@
    "transparents": 10.0,
    "non_classees": 0.0,
    "inconnus": {}
+  },
+  "2026-11-10": {
+   "opaques": 19.0,
+   "transparents": 5.0,
+   "non_classees": 0.0,
+   "inconnus": {}
   }
  },
- "mis_a_jour": "2026-11-10T05:53+01:00",
+ "mis_a_jour": "2026-11-10T18:45+01:00",
  "version": 2
 }
