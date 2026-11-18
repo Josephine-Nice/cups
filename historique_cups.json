@@ -1548,8 +1548,14 @@
    "transparents": 6.0,
    "non_classees": 0.0,
    "inconnus": {}
+  },
+  "2026-11-18": {
+   "opaques": 21.0,
+   "transparents": 7.0,
+   "non_classees": 0.0,
+   "inconnus": {}
   }
  },
- "mis_a_jour": "2026-11-18T06:00+01:00",
+ "mis_a_jour": "2026-11-18T18:54+01:00",
  "version": 2
 }
